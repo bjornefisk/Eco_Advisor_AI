@@ -5612,3 +5612,5 @@ if st.button("Ask Eco Advisor"):
             st.write(reply or "No answer generated.")
         else:
             st.error("No relevant context found.")
+
+            
