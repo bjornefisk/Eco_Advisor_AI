@@ -1,8 +1,11 @@
-import streamlit as st
-import ollama
-import chromadb
+DB_PATH = "./eco_advisor_db/"
 
-# docs
+# Base models
+EMBED_MODEL = "nomic-embed-text"
+GEN_MODEL = "llama2"
+
+# Documents source (moved out of the UI file for modularity)
+# Keep as a single triple-quoted string to allow future replacement with file/db sources.
 RAW_DOCS = """
 Significance Both plant biodiversity and soil fertility are in decline.
 We find that restoration of plant biodiversity on a nutrient-poor, unfertilized soil led to greater increases in soil fertility than occurred when these same plant species grew in monocultures.
@@ -5550,67 +5553,7 @@ Finally, we summarized again the core ideas of human-centered AI and gave two ex
 We are convinced that the next 7 years will be internationally dominated by these topics, and that with their help, practical progress can be made in the entire process chains of future agriculture and forestry.
 """.strip()
 
-documents = [line for line in RAW_DOCS.split("\n") if line.strip()]
+def get_documents() -> list[str]:
+    return [line for line in RAW_DOCS.split("\n") if line.strip()]
 
 
-# start chromadb
-client = chromadb.PersistentClient(path="./eco_advisor_db/")
-collection = client.get_or_create_collection(name="eco_docs")
-
-# embed and add collections if empty
-if collection.count() == 0:
-    st.info(f"Indexing {len(documents)} documents…")
-    progress = st.progress(0)
-    for i, doc in enumerate(documents):
-        emb = ollama.embed(model="nomic-embed-text", input=doc)["embeddings"]
-        collection.add(
-            ids=[str(i)],
-            embeddings=emb,
-            documents=[doc]
-        )
-        progress.progress(int((i + 1) / len(documents) * 100))
-    st.success("Document indexing complete!")
-
-# retrieval helper
-def get_relevant_context(prompt: str) -> str:
-    emb = ollama.embed(model="nomic-embed-text", input=prompt)["embeddings"]
-    res = collection.query(query_embeddings=emb, n_results=1)
-    docs = res.get("documents", [])
-    return docs[0][0] if docs else ""
-
-# user interface
-st.set_page_config(page_title="Eco Advisor AI", layout="wide")
-st.title("🌱 Eco Advisor AI")
-
-st.write("""
-Ask any question about ecology, sustainability or green technology—  
-I'll find the most relevant snippet from your documents and answer as an expert.
-""")
-
-user_q = st.text_area("Your question:", height=150)
-
-if st.button("Ask Eco Advisor"):
-    if not user_q.strip():
-        st.warning("Please enter a question.")
-    else:
-        with st.spinner("Retrieving relevant context…"):
-            ctx = get_relevant_context(user_q)
-        if ctx:
-            st.subheader("🔍 Retrieved Context")
-            st.write(ctx)
-
-            with st.spinner("Generating answer…"):
-                reply = ollama.generate(
-                    model="llama2",
-                    prompt=(
-                        f"Background:\n{ctx}\n\n"
-                        f"Question:\n{user_q}\n\n"
-                        "Answer as an expert eco‐advisor:"
-                    )
-                ).get("response", "")
-            st.subheader("💡 Eco Advisor’s Answer")
-            st.write(reply or "No answer generated.")
-        else:
-            st.error("No relevant context found.")
-
-            
