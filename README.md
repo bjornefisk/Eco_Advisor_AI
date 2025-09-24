@@ -1,1 +1,1 @@
-eco advisor ai rag project
+simple eco advisor ai rag project
